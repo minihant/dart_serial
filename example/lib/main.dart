@@ -20,26 +20,37 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   SerialPort? _port;
-  final _received = <String>[];
-  //final _inputController = TextEditingController();
+  String tempMsg = '';
+  String finalTxt = '';
+  final scrollController = ScrollController();
 
   Future<void> _openPort() async {
-    final port = await window.navigator.serial.requestPort();
-    await port.open(SerialOptions(baudRate: 9600));
+    try {
+      final port = await window.navigator.serial.requestPort();
+      // await Future.delayed(const Duration(milliseconds: 1000));
+      await port.open(SerialOptions(baudRate: 115200));
+      // await Future.delayed(const Duration(milliseconds: 1000));
+      _port = port;
+    } catch (e) {
+      print(e.toString());
+    }
+  }
 
-    _port = port;
+  Future<void> portClose() async {
+    if (_port == null) {
+      return;
+    } else {
+      await _port!.close();
+    }
   }
 
   Future<void> _writeToPort() async {
     if (_port == null) {
       return;
     }
-
     final writer = _port!.writable.writer;
-
     await writer.ready;
-    await writer.write(Uint8List.fromList('Hello World.'.codeUnits));
-
+    await writer.write(Uint8List.fromList('K009\r\n'.codeUnits));
     await writer.ready;
     await writer.close();
   }
@@ -48,22 +59,34 @@ class _MyAppState extends State<MyApp> {
     if (_port == null) {
       return;
     }
-
     final reader = _port!.readable.reader;
-
     while (true) {
       final result = await reader.read();
       final text = String.fromCharCodes(result.value);
-
-      _received.add(text);
-
+      for (int i = 0; i < text.length; i++) {
+        if (text[i] == '\n' || text[i] == '\n') {
+          // _received.add(tempMsg);
+          tempMsg += '\n';
+          finalTxt += tempMsg;
+          tempMsg = '';
+        } else {
+          tempMsg += text[i];
+        }
+      }
       setState(() {});
     }
   }
 
+  Future<void> initPort() async {}
+  // @override
+  // void initState() {
+  //   super.initState();
+  // }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       home: Scaffold(
         appBar: AppBar(
           title: const Text('Flutter Serial'),
@@ -71,32 +94,78 @@ class _MyAppState extends State<MyApp> {
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(8),
-                children: _received.map((e) => Text(e)).toList(),
-              ),
-            ),
-            ElevatedButton(
-              child: const Text('Open Port'),
-              onPressed: () {
+            // ElevatedButton(
+            //   child: const Text('Open Port'),
+            //   onPressed: () {
+            //     _openPort();
+            //   },
+            // ),
+            ListTile(
+              onTap: () async {
                 _openPort();
+                setState(() {});
               },
+              leading: const Icon(Icons.usb),
+              title: const Text('Select Port'),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              child: const Text('Send'),
-              onPressed: () {
+            ListTile(
+              onTap: () async {
+                finalTxt = '';
+                setState(() {});
+              },
+              leading: const Icon(Icons.clean_hands),
+              title: const Text('clear'),
+            ),
+            const SizedBox(height: 16),
+            // ElevatedButton(
+            //   child: const Text('Send OK'),
+            //   onPressed: () {
+            //     _writeToPort();
+            //   },
+            // ),
+            ListTile(
+              onTap: () async {
+                _readFromPort();
+                finalTxt = 'Start';
+                setState(() {});
+              },
+              leading: const Icon(Icons.usb),
+              title: const Text('Open Log Window'),
+            ),
+            ListTile(
+              onTap: () async {
                 _writeToPort();
               },
+              leading: const Icon(Icons.send),
+              title: const Text('Send KeyOK'),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(
-              child: const Text('Receive'),
-              onPressed: () {
-                _readFromPort();
+            ListTile(
+              onTap: () async {
+                portClose();
               },
+              leading: const Icon(Icons.close),
+              title: const Text('port close'),
             ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                reverse: true, //focus stay at bottom
+                scrollDirection: Axis.vertical,
+                controller: scrollController,
+                child: SelectableText(
+                  finalTxt,
+                  style: TextStyle(
+                    color: Colors.white,
+                    backgroundColor: Colors.black,
+                    fontSize: 16,
+                    fontStyle: FontStyle.normal,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
